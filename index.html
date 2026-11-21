@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sistema de Alerta</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+<style>
+  body{font-family:sans-serif;text-align:center;background:#111;color:#fff;margin:0;padding:20px}
+  #dist{font-size:64px;margin:10px 0}
+  #estado{padding:20px;border-radius:12px;font-size:24px;background:#2e7d32}
+  .n1{background:#689f38!important}.n2{background:#f9a825!important;color:#000}
+  .n3{background:#e65100!important}.alerta{background:#c62828!important}
+  #con{font-size:14px;color:#aaa}
+</style>
+</head>
+<body>
+  <h1>Monitor de Proximidad</h1>
+  <div id="con">Conectando...</div>
+  <div id="dist">-- cm</div>
+  <div id="estado">Sin datos</div>
+
+<script>
+const HOST = "broker.hivemq.com";
+const PORT = 8884;
+const PREFIJO = "alertaprox_arom"; // igual que en main.py
+
+const client = new Paho.MQTT.Client(HOST, PORT, "/mqtt", "web_" + Math.random().toString(16).slice(2));
+
+client.onConnectionLost = () => {
+  document.getElementById("con").textContent = "Desconectado, reintentando...";
+  setTimeout(conectar, 3000);
+};
+
+client.onMessageArrived = (m) => {
+  const t = m.destinationName, p = m.payloadString;
+  if (t.endsWith("/distancia")) {
+    document.getElementById("dist").textContent = p + " cm";
+  } else if (t.endsWith("/estado")) {
+    let e;
+    try { e = JSON.parse(p); } catch (err) { return; }
+    const box = document.getElementById("estado");
+    box.className = "";
+    if (e.intrusion) { box.classList.add("alerta"); box.textContent = "🚨 INTRUSIÓN DETECTADA"; }
+    else if (e.nivel == 3) { box.classList.add("n3"); box.textContent = "⚠️ Riesgo ALTO"; }
+    else if (e.nivel == 2) { box.classList.add("n2"); box.textContent = "⚠️ Riesgo medio"; }
+    else if (e.nivel == 1) { box.classList.add("n1"); box.textContent = "Riesgo bajo"; }
+    else { box.textContent = "Zona segura"; }
+  }
+};
+
+function conectar() {
+  client.connect({
+    useSSL: true, timeout: 5,
+    onSuccess: () => {
+      document.getElementById("con").textContent = "Conectado en vivo ✅";
+      client.subscribe(PREFIJO + "/#");
+    },
+    onFailure: (e) => {
+      document.getElementById("con").textContent = "Error: " + e.errorMessage;
+      setTimeout(conectar, 5000);
+    }
+  });
+}
+conectar();
+</script>
+</body>
+</html>
